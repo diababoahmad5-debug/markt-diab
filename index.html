@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+wnDisplay').inne<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -580,4 +580,226 @@
         }
         let remaining = Math.max(0, timerEndTime - Date.now());
         if (remaining <= 0) {
-            document.getElementById('countdownDisplay').inne
+            document.getElementById('countdownDisplay').innerHTML = '✅ انتهى المؤقت!';
+            if (timerInterval) clearInterval(timerInterval);
+            if (document.getElementById('activeTimerBadge')) document.getElementById('activeTimerBadge').style.display = 'none';
+            return;
+        }
+        let seconds = Math.floor(remaining / 1000), minutes = Math.floor(seconds / 60);
+        seconds = seconds % 60;
+        
+        let badge = document.getElementById('activeTimerBadge');
+        if (badge) {
+            badge.style.display = 'block';
+            badge.innerHTML = `⏱️ مؤقت يعمل حالياً [${relayNames[activeRelayForTimer]}]: ${minutes}:${seconds.toString().padStart(2,'0')}`;
+        }
+        document.getElementById('countdownDisplay').innerHTML = `⏱️ متبقي: ${minutes}:${seconds.toString().padStart(2,'0')}`;
+    }
+
+    function startTimerDisplay() {
+        if (timerInterval) clearInterval(timerInterval);
+        updateCountdownDisplay(); timerInterval = setInterval(updateCountdownDisplay, 500);
+    }
+
+    function clearTimerDisplay() {
+        timerEndTime = null; activeRelayForTimer = null;
+        if (timerInterval) clearInterval(timerInterval);
+        document.getElementById('countdownDisplay').innerHTML = '⏰ اضغط هنا لبدء العد';
+        if (document.getElementById('activeTimerBadge')) document.getElementById('activeTimerBadge').style.display = 'none';
+    }
+
+    // ========== لوحة الأجهزة والمستخدمين ومزامنة الحالة ==========
+    function loadUsers() {
+        let saved = localStorage.getItem("esp_users");
+        users = saved ? JSON.parse(saved) : []; renderUsersList();
+    }
+
+    function renderUsersList() {
+        let container = document.getElementById('usersList'); if (!container) return;
+        if (users.length === 0) {
+            container.innerHTML = '<div style="color:#888; text-align:center; padding:15px; font-size:0.8rem;">لا توجد أجهزة مسجلة</div>'; return;
+        }
+        let html = '';
+        users.forEach((user, index) => {
+            html += `
+                <div class="user-card" onclick="window.loginWithUser(${index})">
+                    <div style="color:white; font-size:0.9rem; font-weight:600;">👤 ${user.name}</div>
+                    <button class="delete-user" onclick="event.stopPropagation(); window.deleteUser(${index})">🗑️ إزالة</button>
+                </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function addUser() {
+        let name = document.getElementById('newUserName').value.trim();
+        let chipId = document.getElementById('newUserChipId').value.trim();
+        if (!name || !chipId) { document.getElementById('addUserError').innerText = "❌ املأ الحقول"; return; }
+        
+        document.getElementById('addUserError').innerText = "⏳ جاري التحقق...";
+        db.ref(`${chipId}/diab`).once('value').then(snap => {
+            if (snap.exists() && snap.val() === true) {
+                if (users.find(u => u.name === name)) { document.getElementById('addUserError').innerText = "❌ الاسم مكرر"; return; }
+                users.push({ name: name, chipId: chipId });
+                localStorage.setItem("esp_users", JSON.stringify(users));
+                renderUsersList();
+                document.getElementById('newUserName').value = ''; document.getElementById('newUserChipId').value = '';
+                document.getElementById('addUserError').innerText = ""; showToast(`✅ تم إضافة ${name}`);
+            } else { document.getElementById('addUserError').innerText = "❌ الجهاز غير مصرح له بالسيرفر"; }
+        }).catch(() => { document.getElementById('addUserError').innerText = "⚠️ فشل الاتصال"; });
+    }
+
+    window.deleteUser = function(index) {
+        users.splice(index, 1); localStorage.setItem("esp_users", JSON.stringify(users));
+        renderUsersList(); if (currentUser) logout();
+    };
+
+    window.loginWithUser = function(index) {
+        let user = users[index]; currentUser = user; currentChipId = user.chipId;
+        document.getElementById('sessionsPage').style.display = 'none';
+        document.getElementById('controlPage').style.display = 'flex';
+        document.getElementById('currentUserName').innerText = user.name;
+        
+        for (let i = 1; i <= 7; i++) { relayNames[i] = `مخرج ${i}`; relaysState[i] = false; }
+        loadRelaysState(currentChipId); loadCustomNames(currentChipId); loadTimerFromFirebase(currentChipId);
+        startAuthCheck(currentChipId); // تفعيل فحص الأمان والحذف الفوري
+        switchTab('control');
+    };
+
+    function logout() {
+        if (timerInterval) clearInterval(timerInterval);
+        if (timerListener && currentChipId) { db.ref(`${currentChipId}/timer`).off('value', timerListener); timerListener = null; }
+        if (authListener && currentChipId) { db.ref(`${currentChipId}/diab`).off('value', authListener); authListener = null; }
+        stopAllListeners(); currentUser = null; currentChipId = null;
+        document.getElementById('controlPage').style.display = 'none';
+        document.getElementById('sessionsPage').style.display = 'flex';
+        closePanels(); loadUsers();
+    }
+
+    function switchTab(tabName) {
+        document.getElementById('panelControl').style.display = (tabName === 'control') ? 'grid' : 'none';
+        document.getElementById('globalPanel').style.display = (tabName === 'control') ? 'flex' : 'none';
+        document.getElementById('panelTimer').style.display = (tabName === 'timer') ? 'flex' : 'none';
+        document.getElementById('panelChips').style.display = (tabName === 'chips') ? 'block' : 'none';
+        
+        document.getElementById('tabControlBtn').classList.toggle('active', tabName === 'control');
+        document.getElementById('tabTimerBtn').classList.toggle('active', tabName === 'timer');
+        document.getElementById('tabChipsBtn').classList.toggle('active', tabName === 'chips');
+        if(tabName === 'chips') loadChipsList();
+    }
+
+    function stopAllListeners() {
+        relayListeners.forEach(l => { if (l && l.off) l.off(); }); relayListeners = [];
+    }
+
+    function renderRelays() {
+        let grid = document.getElementById('panelControl'); if (!grid) return;
+        let html = '';
+        for (let i = 1; i <= 7; i++) {
+            let state = relaysState[i] ? 'on' : 'off';
+            html += `
+                <div class="relay-card">
+                    <div class="relay-name">${relayNames[i]}</div>
+                    <div class="toggle-switch ${state}" data-relay="${i}"><span>⚡</span></div>
+                    <div class="status-text ${state}">${state.toUpperCase()}</div>
+                </div>`;
+        }
+        grid.innerHTML = html;
+        document.querySelectorAll('.relays-grid .toggle-switch').forEach(el => {
+            el.addEventListener('click', () => {
+                let relayNum = parseInt(el.dataset.relay);
+                if (!currentChipId) return;
+                let newState = !relaysState[relayNum]; relaysState[relayNum] = newState; renderRelays();
+                db.ref(`${currentChipId}/devices/relay${relayNum}`).set(newState ? "on" : "off");
+            });
+        });
+    }
+
+    function loadRelaysState(chipId) {
+        stopAllListeners();
+        for (let i = 1; i <= 7; i++) {
+            let ref = db.ref(`${chipId}/devices/relay${i}`);
+            let callback = (snapshot) => {
+                let val = snapshot.val();
+                if (val === "on" || val === "off") { relaysState[i] = (val === "on"); renderRelays(); }
+            };
+            ref.on('value', callback); relayListeners.push({ off: () => ref.off('value', callback) });
+        }
+    }
+
+    function loadCustomNames(chipId) {
+        db.ref(`${chipId}/devices/customNames`).once('value').then(snap => {
+            let names = snap.val(); if (names) { for (let i = 1; i <= 7; i++) { if (names[i]) relayNames[i] = names[i]; } renderRelays(); }
+        });
+    }
+
+    function saveCustomNames() {
+        let updates = {};
+        for (let i = 1; i <= 7; i++) {
+            let input = document.getElementById(`customName_${i}`);
+            if (input && input.value.trim()) { updates[i] = input.value.trim(); relayNames[i] = input.value.trim(); }
+        }
+        db.ref(`${currentChipId}/devices/customNames`).update(updates).then(() => { showToast("✅ تم حفظ المسميات"); closePanels(); renderRelays(); });
+    }
+
+    function loadChipsList() {
+        let container = document.getElementById('chipsList'); if (!container) return;
+        let otherChips = users.filter(u => u.chipId !== currentChipId);
+        if (otherChips.length === 0) { container.innerHTML = '<div style="color:#888; text-align:center; padding:15px; font-size:0.8rem;">لا توجد أجهزة أخرى للتبديل</div>'; return; }
+        let html = '';
+        otherChips.forEach(user => {
+            html += `
+                <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:8px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="color:#e2e8f0; font-size:0.85rem;">📱 ${user.name}</span>
+                    <button onclick="window.switchToChip('${user.chipId}', '${user.name}')" style="background:#4facfe; border:none; padding:4px 10px; border-radius:6px; color:white; font-size:0.75rem; cursor:pointer;">تبديل</button>
+                </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    window.switchToChip = function(chipId, userName) {
+        currentChipId = chipId; document.getElementById('currentUserName').innerText = userName;
+        for (let i = 1; i <= 7; i++) relaysState[i] = false;
+        loadRelaysState(chipId); loadCustomNames(chipId); loadTimerFromFirebase(chipId);
+        startAuthCheck(chipId); // تحديث مستمع الأمان للجهاز الجديد المبدل إليه
+        showToast(`🔄 تم التبديل لـ ${userName}`); switchTab('control');
+    };
+
+    function showCustomizePanel() {
+        closePanels();
+        let div = document.getElementById('customizeInputs'); let html = '';
+        for (let i = 1; i <= 7; i++) {
+            html += `<div style="color:#94a3b8; font-size:0.7rem; margin-top:4px; text-align:right;">اسم المخرج ${i}:</div>
+                     <input type="text" id="customName_${i}" value="${relayNames[i]}">`;
+        }
+        div.innerHTML = html; document.getElementById('customizePanel').classList.add('show');
+    }
+
+    function closePanels() { document.getElementById('customizePanel').classList.remove('show'); }
+
+    // إعداد الأحداث والاستماع للضغطات
+    document.getElementById('addUserBtn')?.addEventListener('click', addUser);
+    document.getElementById('tabControlBtn')?.addEventListener('click', () => switchTab('control'));
+    document.getElementById('tabTimerBtn')?.addEventListener('click', () => switchTab('timer'));
+    document.getElementById('tabChipsBtn')?.addEventListener('click', () => switchTab('chips'));
+    document.getElementById('customizeBtn')?.addEventListener('click', showCustomizePanel);
+    document.getElementById('closeCustomizeBtn')?.addEventListener('click', closePanels);
+    document.getElementById('saveCustomize')?.addEventListener('click', saveCustomNames);
+    document.getElementById('logoutBtn')?.addEventListener('click', logout);
+    document.getElementById('cancelTimerBtn')?.addEventListener('click', cancelTimer);
+    
+    // أحداث تشغيل وإطفاء الكل
+    document.getElementById('allOnBtn')?.addEventListener('click', () => setAllRelays(true));
+    document.getElementById('allOffBtn')?.addEventListener('click', () => setAllRelays(false));
+
+    document.getElementById('countdownDisplay')?.addEventListener('click', () => {
+        let min = parseInt(document.getElementById('timerMinutes').value) || 0;
+        let sec = parseInt(document.getElementById('timerSeconds').value) || 0;
+        let relay = parseInt(document.getElementById('scheduleRelaySelect').value);
+        if (min === 0 && sec === 0) { showToast("⚠️ حدد الوقت أولاً"); return; }
+        startTimerAndSave(min, sec, relay);
+    });
+
+    window.addEventListener('DOMContentLoaded', loadUsers);
+</script>
+</body>
+</html>
