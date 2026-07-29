@@ -1,0 +1,453 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>نوبات حراسة باب خلفي</title>
+    <style>
+        :root {
+            --primary-color: #0f172a;
+            --secondary-color: #3b82f6;
+            --accent-color: #10b981;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+            --highlight-bg: #eff6ff;
+            --highlight-border: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* منع التمرير الأفقي نهائياً وضبط العرض تماماً ليعمل بشاشة واحدة متكاملة */
+        html, body {
+            width: 100vw;
+            max-width: 100vw;
+            overflow-x: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 4px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 6px;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            margin-bottom: 4px;
+        }
+
+        header h1 {
+            font-size: 0.85rem;
+            margin-bottom: 1px;
+        }
+
+        header p {
+            font-size: 0.55rem;
+            opacity: 0.9;
+        }
+
+        .live-status-bar {
+            background: #e0f2fe;
+            border: 1px solid #7dd3fc;
+            color: #0369a1;
+            padding: 3px;
+            border-radius: 3px;
+            font-size: 0.6rem;
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 4px;
+            padding: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            margin-bottom: 4px;
+        }
+
+        /* إلغاء التمرير الأفقي وضبط الجدول ليتمدد ويحتوي نفسه تماماً بدون خروج عن الشاشة */
+        .table-responsive {
+            width: 100%;
+            overflow-x: visible;
+            border-radius: 3px;
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+            text-align: center;
+            font-size: 0.55rem;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 2px 1px;
+            vertical-align: middle;
+            overflow: hidden;
+            word-break: break-word;
+        }
+
+        th {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            font-size: 0.55rem;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        tr.today-row {
+            background-color: var(--highlight-bg) !important;
+            border: 1px solid var(--highlight-border);
+        }
+
+        .shift-cell {
+            background-color: #f1f5f9;
+            color: #475569;
+            border-radius: 2px;
+            padding: 2px 1px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            line-height: 1.1;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .shift-cell:hover {
+            filter: brightness(0.95);
+        }
+
+        .shift-cell.past-shift { background-color: #e2e8f0; color: #64748b; }
+        .shift-cell.active-shift { background-color: #dcfce7; color: #166534; border: 1px solid #22c55e; font-weight: bold; }
+        .shift-cell.waiting-shift { background-color: #fef3c7; color: #92400e; }
+
+        .today-badge {
+            display: inline-block;
+            background-color: var(--accent-color);
+            color: white;
+            font-size: 0.45rem;
+            padding: 1px 2px;
+            border-radius: 2px;
+            margin-bottom: 1px;
+        }
+
+        .status-tag {
+            display: inline-block;
+            font-size: 0.45rem;
+            padding: 1px 2px;
+            border-radius: 2px;
+            margin-bottom: 1px;
+            font-weight: bold;
+        }
+
+        .status-tag.ended { background-color: #cbd5e1; color: #334155; }
+        .status-tag.active { background-color: #22c55e; color: white; }
+        .status-tag.waiting { background-color: #f59e0b; color: white; }
+
+        .btn {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 4px;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 2px;
+        }
+
+        .time-note { font-size: 0.45rem; color: #64748b; margin-top: 1px; display: block; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>نوبات حراسة باب خلفي</h1>
+        <p>عرض جدول النوبات المباشر من فايربيس</p>
+    </header>
+
+    <div class="live-status-bar" id="liveStatusBar">🟢 جاري الاتصال وجلب الجدول...</div>
+
+    <div class="card" id="result-card">
+        <div class="table-responsive">
+            <table id="scheduleTable"></table>
+        </div>
+        <button type="button" class="btn" onclick="window.print()">🖨️ طباعة الجدول / حفظ PDF</button>
+    </div>
+</div>
+
+<script>
+    const FIREBASE_URL = "https://abo-ahmad-1406e-default-rtdb.firebaseio.com/settings.json";
+
+    const defaultData = {
+        guards: "أحمد\nمحمود\nخالد\nعمر\nعلي\nحسن",
+        perShift: "2",
+        duration: "4",
+        firstStart: "01:00",
+        startDay: "الإثنين",
+        daysCount: "7"
+    };
+
+    let globalConfig = null;
+    let globalGuards = [];
+
+    window.onload = function() {
+        syncAndDisplay();
+    };
+
+    async function syncAndDisplay() {
+        try {
+            let res = await fetch(FIREBASE_URL);
+            let data = await res.json();
+            
+            if (data && data.guards) {
+                document.getElementById('liveStatusBar').innerHTML = "🟢 تم جلب البيانات بنجاح من فايربيس";
+                globalConfig = data;
+                generateSchedule(data);
+            } else {
+                document.getElementById('liveStatusBar').innerHTML = "⚡ فايربيس فارغة، جاري إرسال البيانات الافتراضية إليها...";
+                await fetch(FIREBASE_URL, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(defaultData)
+                });
+                document.getElementById('liveStatusBar').innerHTML = "🟢 تم ملء فايربيس وعرض الجدول بنجاح";
+                globalConfig = defaultData;
+                generateSchedule(defaultData);
+            }
+        } catch (e) {
+            document.getElementById('liveStatusBar').innerHTML = "⚠️ تعذر الاتصال بفايربيس، يتم عرض النسخة المحلية";
+            globalConfig = defaultData;
+            generateSchedule(defaultData);
+        }
+    }
+
+    function formatDecimalToTime(decimalHour) {
+        let h = Math.floor(decimalHour);
+        let m = Math.round((decimalHour - h) * 60);
+        if (m === 60) { h += 1; m = 0; }
+        let normH = ((h % 24) + 24) % 24;
+        let period = normH >= 12 ? 'م' : 'ص';
+        let h12 = normH % 12;
+        if (h12 === 0) h12 = 12;
+        let mStr = m > 0 ? `:${String(m).padStart(2, '0')}` : ':00';
+        return `${h12}${mStr} ${period}`;
+    }
+
+    function checkShiftStatus(nowH, startH, endH, firstShiftH) {
+        let nowLogical = (nowH - firstShiftH + 24) % 24;
+        let startLogical = (startH - firstShiftH + 24) % 24;
+        let endLogical = (endH - firstShiftH + 24) % 24;
+        if (endLogical === 0 && startLogical !== 0) endLogical = 24;
+
+        if (nowLogical >= endLogical) return 'ended';
+        if (nowLogical >= startLogical && nowLogical < endLogical) return 'active';
+        return 'waiting';
+    }
+
+    function generateSchedule(config) {
+        try {
+            let rawText = config.guards || "";
+            globalGuards = rawText
+                .replace(/\\n/g, '\n')
+                .split(/\r?\n|,|\s+/)
+                .map(g => g.trim())
+                .filter(g => g.length > 0);
+
+            if (globalGuards.length === 0) return;
+
+            let perShiftCount = parseInt(config.perShift) || 2;
+            let shiftDuration = parseInt(config.duration) || 4;
+            let firstShiftStart = config.firstStart || "01:00";
+            let startDayName = config.startDay || "الإثنين";
+            let daysCount = parseInt(config.daysCount) || 7;
+
+            let shiftsPerDay = 24 / shiftDuration;
+            let [startH_str, startM_str] = firstShiftStart.split(':');
+            let firstShiftH = parseInt(startH_str) + (parseInt(startM_str) / 60);
+            let currentStartTime = firstShiftH;
+            let shiftsConfig = [];
+
+            for (let i = 0; i < shiftsPerDay; i++) {
+                let endH = currentStartTime + shiftDuration;
+                shiftsConfig.push({ name: `نوبة ${i + 1}`, start: currentStartTime % 24, end: endH % 24 });
+                currentStartTime = endH;
+            }
+
+            const allDays = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+            let startIndex = allDays.indexOf(startDayName);
+            if (startIndex === -1) startIndex = 0;
+
+            let selectedDays = [];
+            for (let i = 0; i < daysCount; i++) selectedDays.push(allDays[(startIndex + i) % 7]);
+
+            const now = new Date();
+            let realNowHours = now.getHours() + (now.getMinutes() / 60) + (now.getSeconds() / 3600);
+            let logicalDayIndex = now.getDay();
+            
+            if (realNowHours < firstShiftH) logicalDayIndex = (logicalDayIndex - 1 + 7) % 7; 
+            const jsDaysMap = { 6: 'السبت', 0: 'الأحد', 1: 'الإثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس', 5: 'الجمعة' };
+            let logicalCurrentDayName = jsDaysMap[logicalDayIndex];
+
+            let tableHTML = `<thead><tr><th style="width: 14%;">اليوم</th>`;
+            for (let s = 0; s < shiftsConfig.length; s++) {
+                tableHTML + `<th style="width: ${86 / shiftsConfig.length}%;">${shiftsConfig[s].name}<br><span style="font-weight:normal; color:#cbd5e1; font-size:0.45rem;">${formatDecimalToTime(shiftsConfig[s].start)}-${formatDecimalToTime(shiftsConfig[s].end)}</span></th>`;
+            }
+            tableHTML += `</tr></thead><tbody>`;
+
+            let currentDayIndexInList = selectedDays.indexOf(logicalCurrentDayName);
+
+            for (let d = 0; d < selectedDays.length; d++) {
+                let dayName = selectedDays[d];
+                let isToday = (dayName === logicalCurrentDayName);
+                let rowClass = isToday ? 'today-row' : '';
+                let badgeHTML = isToday ? `<span class="today-badge">اليوم</span><br>` : '';
+
+                tableHTML += `<tr class="${rowClass}"><td style="font-weight:bold; vertical-align: middle;">${badgeHTML}${dayName}</td>`;
+
+                for (let s = 0; s < shiftsConfig.length; s++) {
+                    let shiftInfo = shiftsConfig[s];
+                    let assignedGuards = [];
+                    
+                    let baseIndex = ((d * shiftsConfig.length) + s) * perShiftCount;
+                    let guardsStrList = [];
+                    for (let p = 0; p < perShiftCount; p++) {
+                        let gName = globalGuards[(baseIndex + p) % globalGuards.length];
+                        assignedGuards.push(gName);
+                        guardsStrList.push(gName);
+                    }
+
+                    let statusClass = "shift-cell";
+                    let statusLabel = "";
+                    let timeInfoStr = `<span class="time-note">${formatDecimalToTime(shiftInfo.start)}➔${formatDecimalToTime(shiftInfo.end)}</span>`;
+
+                    let shiftState = 'waiting';
+
+                    if (currentDayIndexInList !== -1) {
+                        if (d < currentDayIndexInList) {
+                            statusClass += " past-shift"; statusLabel = `<div class="status-tag ended">منتهية</div>`;
+                            shiftState = 'past';
+                        } else if (d > currentDayIndexInList) {
+                            statusClass += " waiting-shift"; statusLabel = `<div class="status-tag waiting">انتظار</div>`;
+                            shiftState = 'waiting';
+                        } else {
+                            let status = checkShiftStatus(realNowHours, shiftInfo.start, shiftInfo.end, firstShiftH);
+                            if (status === 'ended') {
+                                statusClass += " past-shift"; statusLabel = `<div class="status-tag ended">منتهية</div>`;
+                                shiftState = 'past';
+                            } else if (status === 'active') {
+                                statusClass += " active-shift"; statusLabel = `<div class="status-tag active">الآن</div>`;
+                                shiftState = 'active';
+                            } else {
+                                statusClass += " waiting-shift"; statusLabel = `<div class="status-tag waiting">قادمة</div>`;
+                                shiftState = 'waiting';
+                            }
+                        }
+                    } else {
+                        statusClass += " waiting-shift"; statusLabel = `<div class="status-tag waiting">انتظار</div>`;
+                        shiftState = 'waiting';
+                    }
+
+                    let guardsText = assignedGuards.join('<br>');
+                    
+                    let clickParam = JSON.stringify({
+                        day: dayName,
+                        shiftName: shiftsConfig[s].name,
+                        start: shiftInfo.start,
+                        end: shiftInfo.end,
+                        guards: guardsStrList.join(' و '),
+                        state: shiftState
+                    }).replace(/"/g, '&quot;');
+
+                    tableHTML += `<td><div class="${statusClass}" onclick="handleShiftClick(${clickParam})">${statusLabel}<strong style="font-size:0.55rem; line-height: 1.0;">${guardsText}</strong>${timeInfoStr}</div></td>`;
+                }
+                tableHTML += `</tr>`;
+            }
+
+            tableHTML += `</tbody>`;
+            document.getElementById('scheduleTable').innerHTML = tableHTML;
+            
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function handleShiftClick(shift) {
+        const now = new Date();
+        let realNowHours = now.getHours() + (now.getMinutes() / 60) + (now.getSeconds() / 3600);
+        
+        let selectedDaysCount = parseInt(globalConfig.daysCount) || 7;
+        let allDays = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
+        let startDayName = globalConfig.startDay || "الإثنين";
+        let startIndex = allDays.indexOf(startDayName);
+        if (startIndex === -1) startIndex = 0;
+
+        let selectedDays = [];
+        for (let i = 0; i < selectedDaysCount; i++) selectedDays.push(allDays[(startIndex + i) % 7]);
+
+        let dayIndexInList = selectedDays.indexOf(shift.day);
+        let [startH_str, startM_str] = (globalConfig.firstStart || "01:00").split(':');
+        let firstShiftH = parseInt(startH_str) + (parseInt(startM_str) / 60);
+
+        let logicalDayIndex = now.getDay();
+        if (realNowHours < firstShiftH) logicalDayIndex = (logicalDayIndex - 1 + 7) % 7;
+        let jsDaysMap = { 6: 'السبت', 0: 'الأحد', 1: 'الإثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس', 5: 'الجمعة' };
+        let logicalCurrentDayName = jsDaysMap[logicalDayIndex];
+        let currentDayIndexInList = selectedDays.indexOf(logicalCurrentDayName);
+
+        let shiftStartAbs = (dayIndexInList * 24) + shift.start;
+        let shiftEndAbs = (dayIndexInList * 24) + shift.end;
+        if (shift.end < shift.start) shiftEndAbs += 24;
+
+        let nowAbs = (currentDayIndexInList * 24) + realNowHours;
+
+        if (shift.state === 'past') {
+            alert(`⚠️ هذه النوبة الخاصة بـ (${shift.guards}) في ${shift.day} (${shift.shiftName}) قد انتهت بالفعل.`);
+        } else if (shift.state === 'active') {
+            let diffSeconds = Math.max(0, Math.floor((shiftEndAbs - nowAbs) * 3600));
+            let hours = Math.floor(diffSeconds / 3600);
+            let minutes = Math.floor((diffSeconds % 3600) / 60);
+            let seconds = diffSeconds % 60;
+            
+            alert(`🟢 النوبة جارية حالياً!\nالحراس: ${shift.guards}\nالوقت المتبقي لتنتهي: ${hours} ساعة و ${minutes} دقيقة و ${seconds} ثانية.`);
+        } else {
+            let diffSeconds = Math.max(0, Math.floor((shiftStartAbs - nowAbs) * 3600));
+            let hours = Math.floor(diffSeconds / 3600);
+            let minutes = Math.floor((diffSeconds % 3600) / 60);
+            let seconds = diffSeconds % 60;
+            
+            alert(`⏳ النوبة قادمة / في الانتظار.\nالحراس: ${shift.guards}\nالوقت المتبقي لتبدأ: ${hours} ساعة و ${minutes} دقيقة و ${seconds} ثانية.`);
+        }
+    }
+</script>
+
+</body>
+</html>
